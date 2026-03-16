@@ -83,8 +83,10 @@ class UsbPrinterManager(private val usbManager: UsbManager) {
     }
 
     /**
-     * Sends raw ESC/POS data to the printer.
-     * @param data raw bytes (e.g. ESC/POS commands)
+     * Sends raw ESC/POS data to the printer. Bytes are sent unchanged (no encoding or conversion).
+     * Use this for full ESC/POS streams including binary (e.g. GS v 0 raster logo, GS ( k QR code).
+     *
+     * @param data raw bytes (ESC/POS init, raster, QR commands, text, etc.)
      * @return true if all data was sent successfully, false if not connected or transfer failed
      */
     fun print(data: ByteArray): Boolean {
