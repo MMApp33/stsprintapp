@@ -19,25 +19,28 @@ jobs:
           cache: gradle
 
       - run: chmod +x gradlew
-      - run: ./gradlew assembleRelease bundleRelease --no-daemon
+      - run: ./gradlew assembleDebug assembleRelease bundleRelease --no-daemon
         env:
           CI: true
 
-      - name: List build outputs
+      - name: Collect APK and AAB
         run: |
-          echo "=== APK release folder ==="
-          ls -la app/build/outputs/apk/release/ || true
-          echo "=== Bundle release folder ==="
-          ls -la app/build/outputs/bundle/release/ || true
+          mkdir -p artifacts/apk artifacts/aab
+          find app/build/outputs/apk -name "*.apk" -type f -exec cp {} artifacts/apk/ \;
+          find app/build/outputs/bundle -name "*.aab" -type f -exec cp {} artifacts/aab/ \;
+          echo "=== APKs ==="
+          ls -la artifacts/apk/
+          echo "=== AABs ==="
+          ls -la artifacts/aab/
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
-          path: app/build/outputs/apk/release/
+          path: artifacts/apk/
 
       - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
           name: app-release-aab
-          path: app/build/outputs/bundle/release/
+          path: artifacts/aab/
