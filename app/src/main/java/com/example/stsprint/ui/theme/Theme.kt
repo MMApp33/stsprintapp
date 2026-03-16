@@ -9,19 +9,29 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
+    primary = StsprintGreen,
+    onPrimary = Color.Black,
+    primaryContainer = StsprintGreenDark,
+    onPrimaryContainer = Color.White,
     secondary = PurpleGrey80,
+    secondaryContainer = Color(0xFF4A4458),
+    onSecondaryContainer = Color(0xFFE8E0EC),
     tertiary = Pink80
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
+    primary = StsprintGreen,
+    onPrimary = Color.Black,
+    primaryContainer = StsprintGreen.copy(alpha = 0.3f),
+    onPrimaryContainer = Color.Black,
     secondary = PurpleGrey40,
+    secondaryContainer = Color(0xFFE8E0EC),
+    onSecondaryContainer = Color(0xFF1D1B20),
     tertiary = Pink40
-
     /* Other default colors to override
     background = Color(0xFFFFFBFE),
     surface = Color(0xFFFFFBFE),
@@ -36,8 +46,8 @@ private val LightColorScheme = lightColorScheme(
 @Composable
 fun StsprintTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    // Use brand color #96CC28; set to true to use system dynamic color on Android 12+
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {

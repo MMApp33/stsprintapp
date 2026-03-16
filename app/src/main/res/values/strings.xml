@@ -1,3 +1,18 @@
 <resources>
-    <string name="app_name">stsprint</string>
+    <string name="app_name">STS Print Bridge</string>
+    <string name="splash_tagline">Print app</string>
+    <string name="splash_powered_by">Powered by santoserve</string>
+
+    <!-- Main screen -->
+    <string name="main_status_title">Printer bridge is running</string>
+    <string name="main_status_url">http://localhost:%d</string>
+    <string name="main_keep_open_title">Do not close this app</string>
+    <string name="main_keep_open_body">Keep STS Print Bridge open on this screen (or in the background). If you close the app or swipe it away, printing will stop. Leave it running so your computer or other apps can send print jobs to the USB printer.</string>
+    <string name="main_troubleshoot_title">Printer not working?</string>
+    <string name="main_troubleshoot_intro">Try these steps:</string>
+    <string name="main_tip_1">Connect the USB printer to this device and make sure it is powered on.</string>
+    <string name="main_tip_2">When prompted, tap \"Allow\" to grant USB access to the printer.</string>
+    <string name="main_tip_3">Do not close this app or remove it from recent apps — keep it open.</string>
+    <string name="main_tip_4">Restart the app if you unplugged and reconnected the printer.</string>
+    <string name="main_tip_5">Use a supported thermal receipt (ESC/POS) printer connected via USB OTG.</string>
 </resources>

@@ -19,6 +19,9 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Use icon from app/img/icon-512x512.png when present (copyAppIcon task copies it)
+        manifestPlaceholders["appIcon"] = if (file("img/icon-512x512.png").exists()) "@drawable/ic_app_icon" else "@mipmap/ic_launcher"
     }
 
     buildTypes {
@@ -28,6 +31,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // In CI (e.g. GitHub Actions), allow unsigned release for artifact build.
+            // For Play Store, add signingConfigs.release with your keystore.
+            if (System.getenv("CI") == "true") {
+                signingConfig = null
+            }
         }
     }
     compileOptions {
@@ -38,6 +46,21 @@ android {
         compose = true
     }
 }
+
+// Copy app/img/icon-512x512.png into res so the launcher uses it (single source in solution)
+tasks.register("copyAppIcon") {
+    doLast {
+        val src = file("img/icon-512x512.png")
+        if (src.exists()) {
+            copy {
+                from(src)
+                into(file("src/main/res/drawable"))
+                rename { "ic_app_icon.png" }
+            }
+        }
+    }
+}
+tasks.named("preBuild").configure { dependsOn("copyAppIcon") }
 
 dependencies {
     implementation(libs.androidx.core.ktx)
@@ -55,4 +78,5 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+    implementation(libs.nanohttpd)
 }
