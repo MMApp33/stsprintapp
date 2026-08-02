@@ -8,8 +8,10 @@ import android.content.ServiceConnection
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.os.Handler
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -31,17 +33,22 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Phonelink
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material3.Button
@@ -51,7 +58,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
@@ -61,6 +70,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -157,8 +167,11 @@ class MainActivity : ComponentActivity() {
 }
 
 private enum class BridgeTab(val label: String) {
+    DASHBOARD("Dashboard"),
     PRINT("Print"),
-    CALLER_ID("Caller ID")
+    CALLER_ID("Caller ID"),
+    CALLS("Calls"),
+    SETTINGS("Settings")
 }
 
 fun hapticFeedback(context: Context, duration: Long = 50) {
@@ -226,8 +239,11 @@ fun MainScreen(service: PrintBridgeService? = null, context: Context? = null) {
                             icon = {
                                 Icon(
                                     imageVector = when (tab) {
+                                        BridgeTab.DASHBOARD -> Icons.Filled.Dashboard
                                         BridgeTab.PRINT -> Icons.Filled.Print
                                         BridgeTab.CALLER_ID -> Icons.Filled.Phonelink
+                                        BridgeTab.CALLS -> Icons.Filled.History
+                                        BridgeTab.SETTINGS -> Icons.Filled.Settings
                                     },
                                     contentDescription = "${tab.label} tab",
                                     tint = if (selectedTab == index) {
@@ -255,6 +271,11 @@ fun MainScreen(service: PrintBridgeService? = null, context: Context? = null) {
         }
     ) { innerPadding ->
         when (tabs[selectedTab]) {
+            BridgeTab.DASHBOARD -> DashboardTab(
+                modifier = Modifier.padding(innerPadding),
+                service = service,
+                context = context
+            )
             BridgeTab.PRINT -> PrintTab(
                 modifier = Modifier.padding(innerPadding),
                 service = service,
@@ -275,6 +296,16 @@ fun MainScreen(service: PrintBridgeService? = null, context: Context? = null) {
                     serverPort = serverPort
                 )
             }
+            BridgeTab.CALLS -> CallHistoryTab(
+                modifier = Modifier.padding(innerPadding),
+                service = service,
+                context = context
+            )
+            BridgeTab.SETTINGS -> SettingsTab(
+                modifier = Modifier.padding(innerPadding),
+                service = service,
+                context = context
+            )
         }
     }
 }
@@ -290,6 +321,8 @@ private fun PrintTab(
     var isConnecting by remember { mutableStateOf(false) }
     var testPrintLoading by remember { mutableStateOf(false) }
     var serverPort by remember { mutableIntStateOf(12345) }
+    var serverError by remember { mutableStateOf<String?>(null) }
+    var isReconnecting by remember { mutableStateOf(false) }
 
     LaunchedEffect(service) {
         while (true) {
@@ -321,6 +354,46 @@ private fun PrintTab(
                 else -> BannerTone.INFO
             }
         )
+
+        if (serverError != null) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = StatusError.copy(alpha = 0.12f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Server Error",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = StatusError
+                        )
+                        Text(
+                            text = serverError ?: "Unknown error",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                    Button(
+                        onClick = {
+                            context?.let { hapticFeedback(it) }
+                            service?.ensureServerRunning()
+                            serverError = null
+                        },
+                        modifier = Modifier.padding(start = 12.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text("Retry", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+        }
 
         Surface(
             shape = RoundedCornerShape(16.dp),
@@ -403,28 +476,64 @@ private fun PrintTab(
                     active = printerConnected
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                Button(
-                    onClick = {
-                        isConnecting = true
-                        context?.let { hapticFeedback(it) }
-                        service?.tryConnectToPrinter()
-                    },
-                    enabled = service != null && !isConnecting,
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(vertical = 14.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.Usb,
-                        contentDescription = "USB connection icon",
-                        modifier = Modifier
-                            .size(18.dp)
-                            .padding(end = 8.dp)
-                    )
-                    Text(
-                        text = if (isConnecting) "Requesting..." else if (printerConnected) "Reconnect printer" else "Connect / request USB access",
-                        style = MaterialTheme.typography.labelLarge
-                    )
+                    Button(
+                        onClick = {
+                            isConnecting = true
+                            context?.let { hapticFeedback(it) }
+                            service?.tryConnectToPrinter()
+                        },
+                        enabled = service != null && !isConnecting,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(vertical = 14.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Usb,
+                            contentDescription = "USB connection icon",
+                            modifier = Modifier
+                                .size(18.dp)
+                                .padding(end = 8.dp)
+                        )
+                        Text(
+                            text = if (isConnecting) "Requesting..." else if (printerConnected) "Reconnect" else "Connect",
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            context?.let { hapticFeedback(it) }
+                            Toast.makeText(context, "Testing server connection...", Toast.LENGTH_SHORT).show()
+                            Thread {
+                                try {
+                                    val socket = java.net.Socket()
+                                    socket.connect(java.net.InetSocketAddress("127.0.0.1", serverPort), 1000)
+                                    socket.close()
+                                    Handler(android.os.Looper.getMainLooper()).post {
+                                        Toast.makeText(context, "✓ Server is reachable", Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: Exception) {
+                                    Handler(android.os.Looper.getMainLooper()).post {
+                                        Toast.makeText(context, "✗ Server not reachable", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }.start()
+                        },
+                        enabled = service != null,
+                        modifier = Modifier.weight(0.8f),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(vertical = 14.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Speed,
+                            contentDescription = "Test icon",
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
 
                 if (printerConnected) {
@@ -1255,6 +1364,367 @@ private fun callerIdTone(snapshot: CallerIdSnapshot): BannerTone = when (snapsho
     CallerIdStatus.PERMISSION_REQUIRED, CallerIdStatus.DETECTED -> BannerTone.WARN
     CallerIdStatus.ERROR, CallerIdStatus.DISCONNECTED -> BannerTone.ERROR
     CallerIdStatus.NOT_DETECTED -> BannerTone.INFO
+}
+
+@Composable
+private fun DashboardTab(
+    modifier: Modifier = Modifier,
+    service: PrintBridgeService?,
+    context: Context? = null
+) {
+    var printerConnected by remember { mutableStateOf(false) }
+    var listening by remember { mutableStateOf(false) }
+    var lastCall by remember { mutableStateOf<String?>(null) }
+    var callCount by remember { mutableLongStateOf(0L) }
+    var printCount by remember { mutableLongStateOf(0L) }
+    var uptime by remember { mutableStateOf("0 min") }
+
+    LaunchedEffect(service) {
+        while (true) {
+            printerConnected = service?.isPrinterConnected() == true
+            val snapshot = service?.getCallerIdSnapshot()
+            listening = snapshot?.listening == true
+            lastCall = service?.getCallHistory()?.firstOrNull()?.phone
+            callCount = service?.getStats()?.getCallCount() ?: 0L
+            printCount = service?.getStats()?.getPrintJobCount() ?: 0L
+            uptime = service?.getStats()?.getUptimeString() ?: "0 min"
+            delay(500)
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = "Overview",
+            style = MaterialTheme.typography.headlineMedium
+        )
+
+        // Status cards
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            StatusCard(
+                title = "Printer",
+                status = if (printerConnected) "Connected" else "Disconnected",
+                icon = Icons.Filled.Print,
+                isActive = printerConnected,
+                modifier = Modifier.weight(1f)
+            )
+            StatusCard(
+                title = "Caller ID",
+                status = if (listening) "Listening" else "Idle",
+                icon = Icons.Filled.Phonelink,
+                isActive = listening,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        // Last call
+        if (lastCall != null) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 2.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Last Call", style = MaterialTheme.typography.titleSmall)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = lastCall ?: "—",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Button(
+                        onClick = { context?.let { Toast.makeText(it, "Copied!", Toast.LENGTH_SHORT).show() } },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Print,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Copy", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+        }
+
+        // Stats
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            StatCard(
+                label = "Calls",
+                value = callCount.toString(),
+                icon = Icons.Filled.Phonelink,
+                modifier = Modifier.weight(1f)
+            )
+            StatCard(
+                label = "Prints",
+                value = printCount.toString(),
+                icon = Icons.Filled.Print,
+                modifier = Modifier.weight(1f)
+            )
+            StatCard(
+                label = "Uptime",
+                value = uptime,
+                icon = Icons.Filled.Speed,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        // Quick actions
+        Text("Quick Actions", style = MaterialTheme.typography.titleMedium)
+        Button(
+            onClick = { context?.let { hapticFeedback(it) }; service?.testPrint() },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Icon(Icons.Filled.Print, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Test Print")
+        }
+        Button(
+            onClick = { context?.let { hapticFeedback(it) }; service?.scanCallerIdDevices() },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Icon(Icons.Filled.Search, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Scan Devices")
+        }
+    }
+}
+
+@Composable
+private fun StatusCard(
+    title: String,
+    status: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    isActive: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = if (isActive) StatusOk.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surface,
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = if (isActive) StatusOk else MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(title, style = MaterialTheme.typography.labelSmall)
+            Text(status, style = MaterialTheme.typography.labelMedium, color = if (isActive) StatusOk else MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun StatCard(
+    label: String,
+    value: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun CallHistoryTab(
+    modifier: Modifier = Modifier,
+    service: PrintBridgeService?,
+    context: Context? = null
+) {
+    var calls by remember { mutableStateOf<List<CallRecord>>(emptyList()) }
+
+    LaunchedEffect(service) {
+        while (true) {
+            calls = service?.getCallHistory() ?: emptyList()
+            delay(1000)
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Recent Calls (${calls.size})", style = MaterialTheme.typography.headlineMedium)
+            OutlinedButton(
+                onClick = { service?.clearCallHistory() },
+                enabled = calls.isNotEmpty(),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Clear", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+
+        if (calls.isEmpty()) {
+            Text("No calls recorded", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(20.dp))
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(calls) { call ->
+                    CallHistoryItem(call, service)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CallHistoryItem(call: CallRecord, service: PrintBridgeService?) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(call.phone, style = MaterialTheme.typography.titleSmall, fontFamily = FontFamily.Monospace)
+                Text(call.timestamp.takeLast(8), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Button(onClick = { service?.deleteCallRecord(call.id) }, shape = RoundedCornerShape(8.dp)) {
+                Text("×", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsTab(
+    modifier: Modifier = Modifier,
+    service: PrintBridgeService?,
+    context: Context? = null
+) {
+    val settings = service?.getSettings()
+    var usbTimeout by remember { mutableIntStateOf(settings?.getUsbTimeoutMs() ?: 5000) }
+    var logRetentionDays by remember { mutableIntStateOf(settings?.getLogRetentionDays() ?: 7) }
+    var autoReconnect by remember { mutableStateOf(settings?.isAutoReconnectEnabled() ?: true) }
+    var notifications by remember { mutableStateOf(settings?.isNotificationsEnabled() ?: true) }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text("Settings", style = MaterialTheme.typography.headlineMedium)
+
+        SettingItem("Auto-reconnect", "", autoReconnect) { value ->
+            autoReconnect = value
+            settings?.setAutoReconnect(value)
+        }
+
+        SettingItem("Notifications", "", notifications) { value ->
+            notifications = value
+            settings?.setNotifications(value)
+        }
+
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 1.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Log Retention Days: $logRetentionDays", style = MaterialTheme.typography.labelMedium)
+                Slider(
+                    value = logRetentionDays.toFloat(),
+                    onValueChange = { newValue ->
+                        logRetentionDays = newValue.toInt()
+                        settings?.setLogRetentionDays(logRetentionDays)
+                    },
+                    valueRange = 1f..30f,
+                    steps = 29
+                )
+            }
+        }
+
+        Button(
+            onClick = { service?.clearCallHistory(); context?.let { Toast.makeText(it, "History cleared", Toast.LENGTH_SHORT).show() } },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = StatusWarn)
+        ) {
+            Text("Clear Call History", style = MaterialTheme.typography.labelLarge)
+        }
+
+        Button(
+            onClick = { service?.getStats()?.reset(); context?.let { Toast.makeText(it, "Stats reset", Toast.LENGTH_SHORT).show() } },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = StatusError)
+        ) {
+            Text("Reset All Stats", style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
+@Composable
+private fun SettingItem(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.labelLarge)
+            }
+            androidx.compose.material3.Switch(checked = checked, onCheckedChange = onCheckedChange)
+        }
+    }
 }
 
 @Preview(showBackground = true)

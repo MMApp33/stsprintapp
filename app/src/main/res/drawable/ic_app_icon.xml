@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="512dp"
+    android:height="512dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+
+    <!-- Background green circle -->
+    <path
+        android:fillColor="#1B7C4F"
+        android:pathData="M256,512C397.4,512 512,397.4 512,256C512,114.6 397.4,0 256,0C114.6,0 0,114.6 0,256C0,397.4 114.6,512 256,512Z" />
+
+    <!-- USB Port (left) - white rectangle -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M100,200L160,200L160,310L100,310L100,200Z" />
+
+    <!-- USB Port connector 1 -->
+    <path
+        android:fillColor="#1B7C4F"
+        android:pathData="M115,315L135,315L135,345L115,345L115,315Z" />
+
+    <!-- USB Port connector 2 -->
+    <path
+        android:fillColor="#1B7C4F"
+        android:pathData="M145,315L165,315L165,345L145,345L145,315Z" />
+
+    <!-- Bridge - horizontal line -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="12"
+        android:pathData="M200,250L312,250"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent" />
+
+    <!-- Bridge - left arc -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="10"
+        android:pathData="M220,250Q220,210 240,210"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent" />
+
+    <!-- Bridge - right arc -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="10"
+        android:pathData="M292,250Q292,210 312,210"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent" />
+
+    <!-- Phone (right) - white rectangle -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M312,200L372,200L372,310L312,310L312,200Z" />
+
+    <!-- Phone screen -->
+    <path
+        android:fillColor="#1B7C4F"
+        android:pathData="M322,215L362,215L362,275L322,275L322,215Z" />
+
+    <!-- Phone speaker (small square) -->
+    <path
+        android:fillColor="#1B7C4F"
+        android:pathData="M331,285L341,285L341,295L331,295L331,285Z" />
+
+    <!-- Phone button 1 (using small circle as filled square) -->
+    <path
+        android:fillColor="#1B7C4F"
+        android:pathData="M320,300L330,300L330,310L320,310L320,300Z" />
+
+    <!-- Phone button 2 (using small circle as filled square) -->
+    <path
+        android:fillColor="#1B7C4F"
+        android:pathData="M350,300L360,300L360,310L350,310L350,300Z" />
+
+</vector>

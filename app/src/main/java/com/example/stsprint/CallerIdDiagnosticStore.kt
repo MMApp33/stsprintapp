@@ -41,6 +41,12 @@ class CallerIdDiagnosticStore {
 
     private val listeners = CopyOnWriteArrayList<(CallerIdSnapshot) -> Unit>()
 
+    @Volatile
+    private var latestPhone: String? = null
+
+    @Volatile
+    private var hasNewCall = false
+
     fun addListener(listener: (CallerIdSnapshot) -> Unit) {
         listeners.add(listener)
     }
@@ -194,6 +200,14 @@ class CallerIdDiagnosticStore {
                     append('\n')
                 }
             )
+
+            // Extract phone number from NMBR field if present
+            val phone = extractPhoneNumber(packet.ascii)
+            if (phone != null && phone.isNotEmpty()) {
+                latestPhone = phone
+                hasNewCall = true
+            }
+
             statusRef.set(CallerIdStatus.LISTENING)
             statusMessageRef.set("Listening — packet received (${packet.byteCount} bytes)")
         }
@@ -240,6 +254,19 @@ class CallerIdDiagnosticStore {
 
     fun getOldestPacketDate(): String? = synchronized(lock) {
         packets.firstOrNull()?.timestampIso
+    }
+
+    fun getLatestCall(): Pair<Boolean, String?> {
+        return Pair(hasNewCall, latestPhone)
+    }
+
+    fun markCallAsRead() {
+        hasNewCall = false
+    }
+
+    private fun extractPhoneNumber(ascii: String): String? {
+        val nmbrMatch = Regex("\\[NMBR=([^\\]]+)\\]").find(ascii)
+        return nmbrMatch?.groupValues?.get(1)?.trim()
     }
 
     private fun cleanupOldPackets() {

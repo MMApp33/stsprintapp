@@ -38,6 +38,9 @@ class PrintBridgeService : Service() {
 
     private val callerIdStore = CallerIdDiagnosticStore()
     private var callerIdListener: CallerIdUsbDiagnosticService? = null
+    private val callHistoryStore = CallHistoryStore()
+    private val statsStore = StatsStore()
+    private var appSettings: AppSettingsStore? = null
 
     private val prefs by lazy {
         getSharedPreferences("stsprint_prefs", Context.MODE_PRIVATE)
@@ -46,11 +49,24 @@ class PrintBridgeService : Service() {
     @Volatile
     private var currentServerPort = PRINT_SERVER_PORT
 
+    @Volatile
+    private var serverStartupError: String? = null
+
+    private var printerPermissionDenialCount = 0
+    private var callerIdPermissionDenialCount = 0
+
     private val printerPermissionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == USB_PERMISSION_ACTION) {
                 if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
                     printerManager?.connect()
+                    printerPermissionDenialCount = 0
+                } else {
+                    printerPermissionDenialCount++
+                    Log.w(TAG, "Printer USB permission denied (count: $printerPermissionDenialCount)")
+                    if (printerPermissionDenialCount >= 2) {
+                        Log.e(TAG, "Printer permission denied multiple times, giving up")
+                    }
                 }
             }
         }
@@ -69,11 +85,21 @@ class PrintBridgeService : Service() {
             if (granted && device != null) {
                 Log.i(CID_TAG, "Permission granted for deviceId=${device.deviceId}")
                 callerIdStore.setPermissionGranted(true, "Caller ID USB permission granted")
+                callerIdPermissionDenialCount = 0
                 scanCallerIdDevices()
                 callerIdStore.selectDevice(device.deviceId)
             } else {
-                Log.w(CID_TAG, "Permission denied for Caller ID device")
-                callerIdStore.setPermissionGranted(false, "USB permission denied for Caller ID device")
+                callerIdPermissionDenialCount++
+                Log.w(CID_TAG, "Permission denied for Caller ID device (count: $callerIdPermissionDenialCount)")
+                callerIdStore.setPermissionGranted(false,
+                    if (callerIdPermissionDenialCount >= 2)
+                        "Permission denied. Check app permissions in Settings."
+                    else
+                        "USB permission denied for Caller ID device"
+                )
+                if (callerIdPermissionDenialCount >= 2) {
+                    Log.e(CID_TAG, "Caller ID permission denied multiple times, giving up")
+                }
             }
         }
     }
@@ -118,6 +144,7 @@ class PrintBridgeService : Service() {
     override fun onCreate() {
         super.onCreate()
         try {
+            appSettings = AppSettingsStore(this)
             val usb = getSystemService(Context.USB_SERVICE) as? UsbManager
             if (usb != null) {
                 usbManager = usb
@@ -179,6 +206,14 @@ class PrintBridgeService : Service() {
         }
         startPrintServer()
         return START_STICKY
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= TRIM_MEMORY_MODERATE) {
+            Log.w(TAG, "Memory pressure detected (level: $level), clearing Caller ID logs")
+            callerIdStore.clearLogs()
+        }
     }
 
     override fun onDestroy() {
@@ -298,8 +333,20 @@ class PrintBridgeService : Service() {
             0x0A, 0x0A,
             0x1D, 0x56, 0x00
         )
-        return printerManager?.print(testData) ?: false
+        val success = printerManager?.print(testData) ?: false
+        if (success) statsStore.recordPrintJob()
+        return success
     }
+
+    fun getCallHistory(): List<CallRecord> = callHistoryStore.getCalls()
+
+    fun getStats(): StatsStore = statsStore
+
+    fun getSettings(): AppSettingsStore? = appSettings
+
+    fun clearCallHistory() = callHistoryStore.clearHistory()
+
+    fun deleteCallRecord(id: Long) = callHistoryStore.deleteCall(id)
 
     // region Caller ID diagnostics (separate from printer)
 
@@ -400,11 +447,13 @@ class PrintBridgeService : Service() {
             val port = PrintServer.findAvailablePort(PRINT_SERVER_PORT)
             currentServerPort = port
             printServer = PrintServer(port, pm, callerIdStore).apply { start() }
+            serverStartupError = null
             Log.i(TAG, "Print server started on port $port")
             if (port != PRINT_SERVER_PORT) {
                 Log.w(TAG, "Port $PRINT_SERVER_PORT taken, using fallback port $port")
             }
         } catch (e: Exception) {
+            serverStartupError = "Server failed: ${e.message}"
             Log.e(TAG, "Failed to start print server", e)
         }
     }

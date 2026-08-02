@@ -32,6 +32,13 @@ class PrintServer(
         /** Max body size when Content-Length is missing (read until EOF). Prevents OOM. */
         private const val MAX_BODY_SIZE = 2 * 1024 * 1024 // 2 MB
 
+        // Allowed CORS origins
+        private val ALLOWED_ORIGINS = setOf(
+            "https://scantoserve.com",
+            "http://localhost:12345",
+            "http://localhost:3000"
+        )
+
         fun isPortAvailable(port: Int): Boolean {
             return try {
                 val socket = java.net.ServerSocket(port)
@@ -48,20 +55,27 @@ class PrintServer(
             }
             return startPort // fallback to default even if unavailable
         }
+
+        fun isOriginAllowed(origin: String?): Boolean {
+            return origin != null && ALLOWED_ORIGINS.contains(origin)
+        }
     }
 
     override fun serve(session: IHTTPSession): Response {
         val uri = session.uri
         val method = session.method
+        val requestOrigin = session.headers["origin"]
 
         // CORS preflight
         if (method == Method.OPTIONS && (
                 uri == "/print" ||
                     uri == "/api/caller-id/status" ||
-                    uri == "/api/caller-id/diagnostics"
+                    uri == "/api/caller-id/diagnostics" ||
+                    uri == "/api/status" ||
+                    uri == "/api/latest-call"
                 )
         ) {
-            return addCorsHeaders(newFixedLengthResponse(Response.Status.OK, "text/plain", ""))
+            return addCorsHeaders(newFixedLengthResponse(Response.Status.OK, "text/plain", ""), requestOrigin)
         }
 
         // Existing print endpoint — unchanged behavior
@@ -71,7 +85,7 @@ class PrintServer(
                     Response.Status.OK,
                     "application/json",
                     """{"status":"error","message":"printer not connected"}"""
-                ))
+                ), requestOrigin)
             }
 
             val bodyBytes = try {
@@ -81,7 +95,7 @@ class PrintServer(
                     Response.Status.OK,
                     "application/json",
                     """{"status":"error","message":"failed to read request body"}"""
-                ))
+                ), requestOrigin)
             }
 
             val success = printerManager.print(bodyBytes)
@@ -97,7 +111,7 @@ class PrintServer(
                     "application/json",
                     """{"status":"error","message":"print failed"}"""
                 )
-            })
+            }, requestOrigin)
         }
 
         // Caller ID diagnostics (Phase 1) — isolated from printing
@@ -107,7 +121,7 @@ class PrintServer(
                     Response.Status.OK,
                     "application/json",
                     buildCallerIdStatusJson()
-                )
+                ), requestOrigin
             )
         }
 
@@ -117,11 +131,51 @@ class PrintServer(
                     Response.Status.OK,
                     "application/json",
                     buildCallerIdDiagnosticsJson()
-                )
+                ), requestOrigin
             )
         }
 
-        return addCorsHeaders(newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not found"))
+        // API: Get caller ID status
+        if (uri == "/api/status" && method == Method.GET) {
+            val snap = callerIdStore?.snapshot()
+            return addCorsHeaders(
+                newFixedLengthResponse(
+                    Response.Status.OK,
+                    "application/json",
+                    JSONObject().apply {
+                        put("printerConnected", printerManager.isConnected())
+                        put("callerIdListening", snap?.listening ?: false)
+                        put("callerIdStatus", snap?.status?.name ?: "NOT_DETECTED")
+                        put("serverPort", 12345)
+                    }.toString()
+                ), requestOrigin
+            )
+        }
+
+        // API: Get latest call
+        if (uri == "/api/latest-call" && method == Method.GET) {
+            val (hasNewCall, phone) = callerIdStore?.getLatestCall() ?: Pair(false, null)
+            callerIdStore?.markCallAsRead()
+
+            return addCorsHeaders(
+                newFixedLengthResponse(
+                    Response.Status.OK,
+                    "application/json",
+                    if (hasNewCall && phone != null) {
+                        JSONObject().apply {
+                            put("hasNewCall", true)
+                            put("phone", phone)
+                        }.toString()
+                    } else {
+                        JSONObject().apply {
+                            put("hasNewCall", false)
+                        }.toString()
+                    }
+                ), requestOrigin
+            )
+        }
+
+        return addCorsHeaders(newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not found"), requestOrigin)
     }
 
     private fun buildCallerIdStatusJson(): String {
@@ -230,10 +284,12 @@ class PrintServer(
         return arr
     }
 
-    private fun addCorsHeaders(response: Response): Response {
-        response.addHeader("Access-Control-Allow-Origin", "*")
+    private fun addCorsHeaders(response: Response, requestOrigin: String? = null): Response {
+        val origin = if (isOriginAllowed(requestOrigin)) requestOrigin else "https://scantoserve.com"
+        response.addHeader("Access-Control-Allow-Origin", origin)
         response.addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         response.addHeader("Access-Control-Allow-Headers", "Content-Type")
+        response.addHeader("Access-Control-Allow-Credentials", "true")
         response.addHeader("Access-Control-Max-Age", "86400")
         return response
     }

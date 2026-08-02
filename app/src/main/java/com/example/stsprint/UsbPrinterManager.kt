@@ -48,6 +48,21 @@ class UsbPrinterManager(private val usbManager: UsbManager) {
             return false
         }
 
+        // Verify permission hasn't been revoked
+        if (connectionRef.get() != null) {
+            try {
+                if (!usbManager.hasPermission(device)) {
+                    Log.e(TAG, "USB permission was revoked")
+                    disconnect()
+                    return false
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Permission check failed", e)
+                disconnect()
+                return false
+            }
+        }
+
         val connection = usbManager.openDevice(device) ?: run {
             Log.e(TAG, "Failed to open USB device")
             return false
@@ -99,7 +114,10 @@ class UsbPrinterManager(private val usbManager: UsbManager) {
         if (data.isEmpty()) return true
 
         var offset = 0
-        while (offset < data.size) {
+        var retryCount = 0
+        val maxRetries = 3
+
+        while (offset < data.size && retryCount < maxRetries) {
             val chunkSize = minOf(endpoint.maxPacketSize, data.size - offset)
             val written = connection.bulkTransfer(
                 endpoint,
@@ -108,13 +126,24 @@ class UsbPrinterManager(private val usbManager: UsbManager) {
                 chunkSize,
                 TIMEOUT_MS
             )
+
             if (written < 0) {
-                Log.e(TAG, "bulkTransfer failed: $written")
-                return false
+                retryCount++
+                if (retryCount >= maxRetries) {
+                    Log.e(TAG, "bulkTransfer failed after $maxRetries retries: $written")
+                    disconnect()
+                    return false
+                }
+                Log.w(TAG, "bulkTransfer failed (retry $retryCount/$maxRetries): $written")
+                try {
+                    Thread.sleep((retryCount * 500).toLong())
+                } catch (_: Exception) {}
+                continue
             }
             offset += written
+            retryCount = 0
         }
-        return true
+        return offset >= data.size
     }
 
     /**
