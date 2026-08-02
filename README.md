@@ -1,4 +1,4 @@
-# STS Print Bridge
+# STS Device Bridge
 
 Android app that bridges a USB thermal receipt (ESC/POS) printer to a local HTTP server. Keep the app open on your device and send print jobs by posting raw ESC/POS data to the print endpoint.
 
@@ -52,7 +52,7 @@ Example: `http://192.168.1.100:12345/print`
 
 - Android device with **USB host** support (or USB OTG).
 - Supported **thermal receipt (ESC/POS)** printer connected via USB.
-- Keep **STS Print Bridge open** (do not close or swipe away); if the app is closed, printing stops.
+- Keep **STS Device Bridge open** (do not close or swipe away); if the app is closed, printing stops.
 
 ---
 
@@ -73,7 +73,7 @@ GitHub Actions can build the app: see [.github/workflows/build-android.yml](.git
 
 ## First run
 
-1. Install the app and open **STS Print Bridge**.
+1. Install the app and open **STS Device Bridge**.
 2. Connect the USB printer and tap **Allow** when asked for USB access.
 3. Leave the app on the landing page (or in the background). The server runs while the app is open.
 4. Send POST requests to `http://localhost:12345/print` (or `http://<device-ip>:12345/print` from another machine) with your ESC/POS data in the body.

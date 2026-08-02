@@ -1,6 +1,6 @@
 <resources>
-    <string name="app_name">STS Print Bridge</string>
-    <string name="splash_tagline">Print app</string>
+    <string name="app_name">STS Device Bridge</string>
+    <string name="splash_tagline">Device integration platform</string>
     <string name="splash_powered_by">Powered by santoserve</string>
 
     <!-- Main screen -->
@@ -17,7 +17,7 @@
     <string name="main_tip_5">Use a supported thermal receipt (ESC/POS) printer connected via USB OTG.</string>
 
     <!-- Foreground service notification -->
-    <string name="notification_channel_name">Print Bridge</string>
-    <string name="notification_title">Print Bridge running</string>
+    <string name="notification_channel_name">Device Bridge</string>
+    <string name="notification_title">Device Bridge running</string>
     <string name="notification_text">Receiving print jobs on port %d. Tap to open.</string>
 </resources>

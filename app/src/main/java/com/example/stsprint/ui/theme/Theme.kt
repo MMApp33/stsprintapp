@@ -1,67 +1,61 @@
 package com.example.stsprint.ui.theme
 
-import android.app.Activity
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 
-private val DarkColorScheme = darkColorScheme(
-    primary = StsprintGreen,
-    onPrimary = Color.Black,
-    primaryContainer = StsprintGreenDark,
-    onPrimaryContainer = Color.White,
-    secondary = PurpleGrey80,
-    secondaryContainer = Color(0xFF4A4458),
-    onSecondaryContainer = Color(0xFFE8E0EC),
-    tertiary = Pink80
+private val LightColors = lightColorScheme(
+    primary = BrandLimeDeep,
+    onPrimary = Color.White,
+    primaryContainer = BrandLimeMist,
+    onPrimaryContainer = BrandInk,
+    secondary = BrandForest,
+    onSecondary = Color.White,
+    secondaryContainer = SurfaceMuted,
+    onSecondaryContainer = BrandInk,
+    tertiary = StatusInfo,
+    background = SurfaceCanvas,
+    surface = SurfaceCard,
+    surfaceVariant = SurfaceMuted,
+    onBackground = TextPrimary,
+    onSurface = TextPrimary,
+    onSurfaceVariant = TextSecondary,
+    outline = Color(0xFFCDD5C2),
+    error = StatusError,
+    onError = Color.White
 )
 
-private val LightColorScheme = lightColorScheme(
-    primary = StsprintGreen,
-    onPrimary = Color.Black,
-    primaryContainer = StsprintGreen.copy(alpha = 0.3f),
-    onPrimaryContainer = Color.Black,
-    secondary = PurpleGrey40,
-    secondaryContainer = Color(0xFFE8E0EC),
-    onSecondaryContainer = Color(0xFF1D1B20),
-    tertiary = Pink40
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+private val DarkColors = darkColorScheme(
+    primary = BrandLime,
+    onPrimary = BrandInk,
+    primaryContainer = BrandForest,
+    onPrimaryContainer = TextOnDark,
+    secondary = Color(0xFFB7C7A6),
+    onSecondary = BrandInk,
+    secondaryContainer = Color(0xFF2C3628),
+    onSecondaryContainer = TextOnDark,
+    tertiary = Color(0xFF9BB8C4),
+    background = Color(0xFF10150F),
+    surface = Color(0xFF1A2218),
+    surfaceVariant = Color(0xFF273026),
+    onBackground = TextOnDark,
+    onSurface = TextOnDark,
+    onSurfaceVariant = Color(0xFFB8C3AE),
+    outline = Color(0xFF4E5948),
+    error = StatusError,
+    onError = Color.White
 )
 
 @Composable
 fun StsprintTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Use brand color #96CC28; set to true to use system dynamic color on Android 12+
-    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = if (darkTheme) DarkColors else LightColors,
         typography = Typography,
         content = content
     )

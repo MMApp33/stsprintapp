@@ -20,6 +20,10 @@ class UsbPrinterManager(private val usbManager: UsbManager) {
     private val endpointRef = AtomicReference<UsbEndpoint?>(null)
     private val interfaceRef = AtomicReference<UsbInterface?>(null)
 
+    /** Device IDs to skip (e.g. selected Caller ID hardware) so printing never claims them. */
+    @Volatile
+    var excludedDeviceIds: Set<Int> = emptySet()
+
     companion object {
         private const val TAG = "UsbPrinterManager"
         private const val USB_CLASS_PRINTER = 7
@@ -126,17 +130,29 @@ class UsbPrinterManager(private val usbManager: UsbManager) {
     fun getFirstPrinterDevice(): UsbDevice? = findFirstPrinterDevice()
 
     private fun findFirstPrinterDevice(): UsbDevice? {
-        usbManager.deviceList.values.forEach { device ->
-            if (deviceHasPrinterInterface(device)) return device
+        val devices = usbManager.deviceList.values.filter { it.deviceId !in excludedDeviceIds }
+
+        // Prefer true USB printer class so Caller ID / serial bridges with BULK OUT are not grabbed.
+        devices.forEach { device ->
+            if (deviceHasPrinterClass(device)) return device
+        }
+        // Fallback: vendor-class printers that only expose BULK OUT
+        devices.forEach { device ->
+            if (deviceHasBulkOut(device)) return device
         }
         return null
     }
 
-    private fun deviceHasPrinterInterface(device: UsbDevice): Boolean {
+    private fun deviceHasPrinterClass(device: UsbDevice): Boolean {
+        for (i in 0 until device.interfaceCount) {
+            if (device.getInterface(i).interfaceClass == USB_CLASS_PRINTER) return true
+        }
+        return false
+    }
+
+    private fun deviceHasBulkOut(device: UsbDevice): Boolean {
         for (i in 0 until device.interfaceCount) {
             val usbInterface = device.getInterface(i)
-            if (usbInterface.interfaceClass == USB_CLASS_PRINTER) return true
-            // Some printers use vendor-specific class; accept if they have a BULK OUT endpoint
             for (j in 0 until usbInterface.endpointCount) {
                 val ep = usbInterface.getEndpoint(j)
                 if (ep.type == UsbConstants.USB_ENDPOINT_XFER_BULK &&
