@@ -61,7 +61,8 @@ class PrintServer(
         }
 
         /**
-         * Allows exact local origins, https://scantoserve.com, and any https://*.scantoserve.com subdomain.
+         * Allows exact local origins, https://scantoserve.com, and any https subdomain
+         * of scantoserve.com (for example retailpos.scantoserve.com).
          */
         fun isOriginAllowed(origin: String?): Boolean {
             if (origin.isNullOrBlank()) return false
