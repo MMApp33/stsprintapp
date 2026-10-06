@@ -32,12 +32,16 @@ class PrintServer(
         /** Max body size when Content-Length is missing (read until EOF). Prevents OOM. */
         private const val MAX_BODY_SIZE = 2 * 1024 * 1024 // 2 MB
 
-        // Allowed CORS origins
+        // Exact CORS origins (local dev / known apps). Origin never has a trailing slash.
         private val ALLOWED_ORIGINS = setOf(
             "https://scantoserve.com",
+            "https://retailpos.scantoserve.com",
             "http://localhost:12345",
             "http://localhost:3000"
         )
+
+        /** Apex + any subdomain, e.g. https://retailpos.scantoserve.com */
+        private const val ALLOWED_HOST_SUFFIX = "scantoserve.com"
 
         fun isPortAvailable(port: Int): Boolean {
             return try {
@@ -56,8 +60,21 @@ class PrintServer(
             return startPort // fallback to default even if unavailable
         }
 
+        /**
+         * Allows exact local origins, https://scantoserve.com, and any https://*.scantoserve.com subdomain.
+         */
         fun isOriginAllowed(origin: String?): Boolean {
-            return origin != null && ALLOWED_ORIGINS.contains(origin)
+            if (origin.isNullOrBlank()) return false
+            if (ALLOWED_ORIGINS.contains(origin)) return true
+            return try {
+                val uri = java.net.URI(origin)
+                val host = uri.host?.lowercase() ?: return false
+                val scheme = uri.scheme?.lowercase()
+                scheme == "https" &&
+                    (host == ALLOWED_HOST_SUFFIX || host.endsWith(".$ALLOWED_HOST_SUFFIX"))
+            } catch (_: Exception) {
+                false
+            }
         }
     }
 
